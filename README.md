@@ -68,6 +68,17 @@ Work is organized into small, verifiable milestones:
 5. Define and deploy the LocalStack infrastructure.
 6. Add integration tests and deployment evidence.
 
+The LocalStack deployment workflow is:
+
+```powershell
+.\scripts\build-images.ps1
+.\infrastructure\localstack-deploy.ps1
+```
+
+The deployment script expects LocalStack at `http://localhost:4566` and the
+five application images to be tagged with `:latest`. It uses `lstk aws` for
+LocalStack AWS API calls; the AWS CLI is not required for this workflow.
+
 ## Attribution
 
 This project is independently maintained for educational purposes and is based

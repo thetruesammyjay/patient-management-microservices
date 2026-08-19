@@ -31,3 +31,7 @@ mvn -B compile exec:java
 ```
 
 The expected output is `cdk.out/localstack.template.json`.
+
+`localstack-deploy.ps1` uses host Maven when available. Otherwise it runs the
+same synthesis command in the Java 21 Maven container, so a host Java/Maven
+installation is not required when Docker is healthy.

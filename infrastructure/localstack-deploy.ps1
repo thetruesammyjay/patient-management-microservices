@@ -7,6 +7,14 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
   }
 }
 
+function Show-StackEvents([string]$StackName) {
+  Write-Host "`nCloudFormation events for failed stack '$StackName':"
+  & lstk aws cloudformation describe-stack-events --stack-name $StackName
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Unable to retrieve CloudFormation events for stack '$StackName'."
+  }
+}
+
 $templateDirectory = Join-Path $PSScriptRoot 'cdk.out'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $imageNames = @(
@@ -66,8 +74,13 @@ if ($templateCandidates.Count -gt 1) {
 $template = $template.FullName
 Write-Host "Using synthesized template: $template"
 
-Invoke-Checked 'lstk' @('aws', 'cloudformation', 'deploy', '--stack-name', 'patient-management',
-  '--template-file', $template, '--capabilities', 'CAPABILITY_IAM')
+try {
+  Invoke-Checked 'lstk' @('aws', 'cloudformation', 'deploy', '--stack-name', 'patient-management',
+    '--template-file', $template, '--capabilities', 'CAPABILITY_IAM')
+} catch {
+  Show-StackEvents 'patient-management'
+  throw
+}
 Invoke-Checked 'lstk' @('aws', 'cloudformation', 'describe-stacks', '--stack-name', 'patient-management')
 Invoke-Checked 'lstk' @('aws', 'ecs', 'list-clusters')
 Invoke-Checked 'lstk' @('aws', 'rds', 'describe-db-instances')

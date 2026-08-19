@@ -79,6 +79,18 @@ public final class LocalStackApp extends Stack {
         : value;
   }
 
+  private static String imageReference(String imageName) {
+    String prefix = System.getenv("IMAGE_PREFIX");
+    String tag = System.getenv().getOrDefault("IMAGE_TAG", "latest");
+    if (prefix == null || prefix.isBlank()) {
+      return imageName + ":" + tag;
+    }
+    String normalizedPrefix = prefix.endsWith("/")
+        ? prefix.substring(0, prefix.length() - 1)
+        : prefix;
+    return normalizedPrefix + "/" + imageName + ":" + tag;
+  }
+
   private Vpc createVpc() {
     return Vpc.Builder.create(this, "PatientManagementVpc")
         .vpcName("PatientManagementVpc")
@@ -151,7 +163,7 @@ public final class LocalStackApp extends Stack {
     }
 
     ContainerDefinitionOptions container = ContainerDefinitionOptions.builder()
-        .image(ContainerImage.fromRegistry(imageName))
+        .image(ContainerImage.fromRegistry(imageReference(imageName)))
         .environment(environment)
         .portMappings(ports.stream().map(port -> PortMapping.builder()
             .containerPort(port)
@@ -184,7 +196,7 @@ public final class LocalStackApp extends Stack {
         .memoryLimitMiB(512)
         .build();
     taskDefinition.addContainer("ApiGatewayContainer", ContainerDefinitionOptions.builder()
-        .image(ContainerImage.fromRegistry("api-gateway"))
+        .image(ContainerImage.fromRegistry(imageReference("api-gateway")))
         .environment(Map.of(
             "AUTH_SERVICE_URL", "http://host.docker.internal:4005",
             "PATIENT_SERVICE_URL", "http://host.docker.internal:4000"))

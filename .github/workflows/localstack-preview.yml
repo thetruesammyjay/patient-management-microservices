@@ -1,0 +1,140 @@
+name: LocalStack application preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  packages: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_API_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: infrastructure/pom.xml
+
+      - name: Build service images
+        shell: pwsh
+        run: ./scripts/build-images.ps1
+
+      - name: Publish service images to GitHub Container Registry
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io \
+                --username "${{ github.actor }}" \
+                --password-stdin
+
+          registry_prefix="ghcr.io/${GITHUB_REPOSITORY,,}"
+          for service in patient-service billing-service analytics-service auth-service api-gateway; do
+            image="$registry_prefix/$service:${GITHUB_SHA}"
+            docker tag "$service:latest" "$image"
+            docker push "$image"
+          done
+
+          echo "IMAGE_PREFIX=$registry_prefix" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Start LocalStack ephemeral preview
+        uses: LocalStack/setup-localstack@v0.2.3
+        env:
+          LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_API_KEY }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          state-backend: ephemeral
+          state-action: start
+          skip-ephemeral-stop: 'true'
+          install-awslocal: 'true'
+
+      - name: Deploy CDK to remote LocalStack
+        shell: pwsh
+        run: ./infrastructure/localstack-deploy.ps1
+
+      - name: Create shareable gateway preview URL
+        shell: bash
+        run: |
+          load_balancer_name="$(awslocal elbv2 describe-load-balancers \
+            --query 'LoadBalancers[0].LoadBalancerName' \
+            --output text)"
+
+          if [[ -z "$AWS_ENDPOINT_URL" || "$AWS_ENDPOINT_URL" == "None" ]]; then
+            echo "AWS_ENDPOINT_URL was not provided by the LocalStack preview action."
+            exit 1
+          fi
+
+          preview_url="${AWS_ENDPOINT_URL%/}/_aws/elb/${load_balancer_name}/"
+          echo "LS_PREVIEW_URL=$preview_url" >> "$GITHUB_ENV"
+          echo "TEST_BASE_URL=$preview_url" >> "$GITHUB_ENV"
+
+          {
+            echo "## LocalStack application preview"
+            echo
+            echo "[$preview_url]($preview_url)"
+            echo
+            echo "This preview remains available for the configured ephemeral-instance lifetime."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for gateway health
+        shell: bash
+        run: |
+          for attempt in {1..45}; do
+            if curl --fail --silent "${TEST_BASE_URL}/actuator/health"; then
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Gateway did not become healthy in time."
+          exit 1
+
+      - name: Run gateway integration tests
+        run: mvn -B -f integration-tests/pom.xml test
+
+      - name: Add preview link to pull request
+        if: github.event_name == 'pull_request' && success()
+        uses: LocalStack/setup-localstack/finish@v0.2.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          include-preview: true
+          preview-url: ${{ env.LS_PREVIEW_URL }}
+
+      - name: Stop preview if the workflow fails
+        if: failure()
+        continue-on-error: true
+        uses: LocalStack/setup-localstack@v0.2.3
+        env:
+          LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_API_KEY }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          state-backend: ephemeral
+          state-action: stop
+
+      - name: Upload deployment artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: localstack-preview-artifacts
+          path: infrastructure/cdk.out
+          if-no-files-found: ignore

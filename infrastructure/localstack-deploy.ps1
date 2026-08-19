@@ -7,9 +7,31 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
   }
 }
 
+$script:awsCommand = if (Get-Command 'awslocal' -ErrorAction SilentlyContinue) {
+  'awslocal'
+} else {
+  'lstk'
+}
+$script:awsArgumentsPrefix = if ($script:awsCommand -eq 'lstk') {
+  @('aws')
+} else {
+  @()
+}
+
+function Invoke-AwsChecked([string[]]$Arguments) {
+  $fullArguments = @($script:awsArgumentsPrefix) + @($Arguments)
+  & $script:awsCommand @fullArguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "Command failed with exit code ${LASTEXITCODE}: $($script:awsCommand) $($fullArguments -join ' ')"
+  }
+}
+
 function Show-StackEvents([string]$StackName) {
   Write-Host "`nCloudFormation events for failed stack '$StackName':"
-  $rawEvents = (& lstk aws cloudformation describe-stack-events --stack-name $StackName |
+  $eventArguments = @($script:awsArgumentsPrefix) + @(
+    'cloudformation', 'describe-stack-events', '--stack-name', $StackName
+  )
+  $rawEvents = (& $script:awsCommand @eventArguments |
     Out-String).Trim()
   if ($LASTEXITCODE -ne 0) {
     Write-Warning "Unable to retrieve CloudFormation events for stack '$StackName'."
@@ -47,16 +69,26 @@ $imageNames = @(
   'api-gateway'
 )
 
-$health = Invoke-RestMethod -Uri 'http://localhost:4566/_localstack/health'
+$localstackEndpoint = $env:AWS_ENDPOINT_URL
+if ([string]::IsNullOrWhiteSpace($localstackEndpoint)) {
+  $localstackEndpoint = 'http://localhost:4566'
+}
+$localstackEndpoint = $localstackEndpoint.TrimEnd('/')
+
+$health = Invoke-RestMethod -Uri "$localstackEndpoint/_localstack/health"
 if (-not $health) {
   throw 'LocalStack health endpoint returned no response.'
 }
 
-foreach ($imageName in $imageNames) {
-  & docker image inspect "$($imageName):latest" *> $null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Required image is missing: $imageName`:latest. Run scripts/build-images.ps1 first."
+if ([string]::IsNullOrWhiteSpace($env:IMAGE_PREFIX)) {
+  foreach ($imageName in $imageNames) {
+    & docker image inspect "$($imageName):latest" *> $null
+    if ($LASTEXITCODE -ne 0) {
+      throw "Required image is missing: $imageName`:latest. Run scripts/build-images.ps1 first."
+    }
   }
+} else {
+  Write-Host "Using registry image prefix: $env:IMAGE_PREFIX"
 }
 
 $hostMaven = Get-Command 'mvn' -ErrorAction SilentlyContinue
@@ -97,13 +129,13 @@ $template = $template.FullName
 Write-Host "Using synthesized template: $template"
 
 try {
-  Invoke-Checked 'lstk' @('aws', 'cloudformation', 'deploy', '--stack-name', 'patient-management',
+  Invoke-AwsChecked @('cloudformation', 'deploy', '--stack-name', 'patient-management',
     '--template-file', $template, '--capabilities', 'CAPABILITY_IAM')
 } catch {
   Show-StackEvents 'patient-management'
   throw
 }
-Invoke-Checked 'lstk' @('aws', 'cloudformation', 'describe-stacks', '--stack-name', 'patient-management')
-Invoke-Checked 'lstk' @('aws', 'ecs', 'list-clusters')
-Invoke-Checked 'lstk' @('aws', 'rds', 'describe-db-instances')
-Invoke-Checked 'lstk' @('aws', 'elbv2', 'describe-load-balancers')
+Invoke-AwsChecked @('cloudformation', 'describe-stacks', '--stack-name', 'patient-management')
+Invoke-AwsChecked @('ecs', 'list-clusters')
+Invoke-AwsChecked @('rds', 'describe-db-instances')
+Invoke-AwsChecked @('elbv2', 'describe-load-balancers')

@@ -48,6 +48,33 @@ jobs:
         shell: pwsh
         run: ./infrastructure/localstack-deploy.ps1
 
+      - name: Discover gateway endpoint
+        shell: bash
+        run: |
+          gateway_dns="$(awslocal elbv2 describe-load-balancers \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)"
+
+          echo "TEST_BASE_URL=http://${gateway_dns}" >> "$GITHUB_ENV"
+          echo "Gateway endpoint: http://${gateway_dns}"
+
+      - name: Wait for gateway health
+        shell: bash
+        run: |
+          for attempt in {1..45}; do
+            if curl --fail --silent "${TEST_BASE_URL}/actuator/health"; then
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Gateway did not become healthy in time."
+          exit 1
+
+      - name: Run gateway integration tests
+        run: mvn -B -f integration-tests/pom.xml test
+
       - name: Capture LocalStack diagnostics on failure
         if: failure()
         shell: bash

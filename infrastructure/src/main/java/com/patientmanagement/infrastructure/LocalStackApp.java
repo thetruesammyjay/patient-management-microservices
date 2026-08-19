@@ -112,7 +112,7 @@ public final class LocalStackApp extends Stack {
   private CfnCluster createKafkaCluster() {
     return CfnCluster.Builder.create(this, "PatientManagementKafka")
         .clusterName("patient-management-kafka")
-        .kafkaVersion("2.8.0")
+        .kafkaVersion("3.8.x")
         .numberOfBrokerNodes(2)
         .brokerNodeGroupInfo(CfnCluster.BrokerNodeGroupInfoProperty.builder()
             .instanceType("kafka.m5.large")

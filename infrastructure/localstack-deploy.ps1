@@ -9,9 +9,31 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
 
 function Show-StackEvents([string]$StackName) {
   Write-Host "`nCloudFormation events for failed stack '$StackName':"
-  & lstk aws cloudformation describe-stack-events --stack-name $StackName
+  $rawEvents = (& lstk aws cloudformation describe-stack-events --stack-name $StackName |
+    Out-String).Trim()
   if ($LASTEXITCODE -ne 0) {
     Write-Warning "Unable to retrieve CloudFormation events for stack '$StackName'."
+    Write-Host $rawEvents
+    return
+  }
+
+  try {
+    $events = $rawEvents | ConvertFrom-Json
+    $failedEvents = @(
+      $events.StackEvents |
+        Where-Object { $_.ResourceStatus -like '*_FAILED' } |
+        Select-Object Timestamp, LogicalResourceId, ResourceType, ResourceStatus,
+          ResourceStatusReason
+    )
+
+    if ($failedEvents.Count -gt 0) {
+      $failedEvents | Format-Table -AutoSize | Out-String | Write-Host
+    } else {
+      Write-Host $rawEvents
+    }
+  } catch {
+    Write-Warning 'Unable to parse CloudFormation events; printing the raw response.'
+    Write-Host $rawEvents
   }
 }
 

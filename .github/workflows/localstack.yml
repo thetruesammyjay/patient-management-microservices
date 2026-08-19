@@ -31,11 +31,10 @@ jobs:
           cache-dependency-path: infrastructure/pom.xml
 
       - name: Start LocalStack
-        uses: LocalStack/setup-localstack@v0.2.3
+        uses: LocalStack/setup-localstack@v0.3.2
         with:
           image-tag: latest
           install-awslocal: 'true'
-          use-pro: 'true'
 
       - name: Install LocalStack CLI
         run: npm install --global @localstack/lstk

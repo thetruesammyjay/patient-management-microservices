@@ -58,7 +58,7 @@ jobs:
           echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
 
       - name: Start LocalStack ephemeral preview
-        uses: LocalStack/setup-localstack@v0.2.3
+        uses: LocalStack/setup-localstack@v0.3.2
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
           LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
@@ -68,6 +68,7 @@ jobs:
           state-action: start
           skip-ephemeral-stop: 'true'
           install-awslocal: 'true'
+          include-preview: 'true'
 
       - name: Deploy CDK to remote LocalStack
         shell: pwsh
@@ -114,18 +115,26 @@ jobs:
       - name: Run gateway integration tests
         run: mvn -B -f integration-tests/pom.xml test
 
-      - name: Add preview link to pull request
+      - name: Comment gateway preview URL on pull request
         if: github.event_name == 'pull_request' && success()
-        uses: LocalStack/setup-localstack/finish@v0.2.2
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ env.LS_PREVIEW_URL }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          include-preview: true
-          preview-url: ${{ env.LS_PREVIEW_URL }}
+          script: |
+            const previewUrl = process.env.PREVIEW_URL;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Patient-management gateway preview: ${previewUrl}`
+            });
 
       - name: Stop preview if the workflow fails
         if: failure()
         continue-on-error: true
-        uses: LocalStack/setup-localstack@v0.2.3
+        uses: LocalStack/setup-localstack@v0.3.2
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
           LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}

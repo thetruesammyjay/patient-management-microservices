@@ -1,6 +1,7 @@
 package com.patientmanagement.authservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.patientmanagement.authservice.dto.LoginRequest;
@@ -57,8 +58,9 @@ class AuthApplicationServiceTest {
 
   @Test
   void invalidTokenReturnsFalse() {
-    when(jwtUtil.validateToken("bad-token"))
-        .thenThrow(new io.jsonwebtoken.JwtException("invalid"));
+    doThrow(new io.jsonwebtoken.JwtException("invalid"))
+        .when(jwtUtil)
+        .validateToken("bad-token");
 
     assertThat(service.isValid("bad-token")).isFalse();
   }

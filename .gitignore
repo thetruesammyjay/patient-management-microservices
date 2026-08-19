@@ -1,0 +1,44 @@
+# Reference implementation (kept locally, never committed)
+/java-spring-microservices/
+
+# Secrets and local environment overrides
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+
+# Java and Maven build output
+**/target/
+*.class
+*.log
+*.out
+hs_err_pid*
+
+# LocalStack and AWS local state
+.localstack/
+.aws/
+cdk.out/
+
+# IDEs and editors
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+*.swp
+*.swo
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.bak
+*.tmp
+

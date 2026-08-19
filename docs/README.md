@@ -7,6 +7,10 @@ Documents:
 
 - [`REPOSITORY_ANALYSIS.md`](REPOSITORY_ANALYSIS.md) — reference architecture,
   runtime requirements, risks, and dependency analysis
+- `../patient-service/`, `../billing-service/`, `../analytics-service/`,
+  `../auth-service/`, and `../api-gateway/` — reconstructed application modules
+- `../integration-tests/` — gateway-level REST Assured tests
+- `../infrastructure/` — Java CDK stack and LocalStack deployment script
 - `ARCHITECTURE.md` — system boundaries, communication paths, and diagrams
 - `LOCAL_DEVELOPMENT.md` — local service setup and troubleshooting
 - `LOCALSTACK_DEPLOYMENT.md` — infrastructure build and deployment procedure

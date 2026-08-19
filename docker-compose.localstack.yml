@@ -1,0 +1,14 @@
+services:
+  localstack:
+    image: localstack/localstack-pro:latest
+    container_name: patient-management-localstack
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?Set LOCALSTACK_AUTH_TOKEN in .env}
+      DEBUG: ${DEBUG:-0}
+      LOCALSTACK_PERSISTENCE: ${LOCALSTACK_PERSISTENCE:-1}
+    volumes:
+      - "./.localstack:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"

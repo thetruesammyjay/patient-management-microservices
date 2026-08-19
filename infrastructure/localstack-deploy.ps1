@@ -7,7 +7,7 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
   }
 }
 
-$template = Join-Path $PSScriptRoot 'cdk.out/localstack.template.json'
+$templateDirectory = Join-Path $PSScriptRoot 'cdk.out'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $imageNames = @(
   'patient-service',
@@ -44,9 +44,27 @@ if ($null -ne $hostMaven) {
     'mvn', '-B', 'compile', 'exec:java')
 }
 
-if (-not (Test-Path -LiteralPath $template)) {
-  throw "Synthesized template was not found: $template"
+$templateCandidates = @(
+  Get-ChildItem -LiteralPath $templateDirectory -Filter '*.template.json' -File -ErrorAction SilentlyContinue
+)
+
+if ($templateCandidates.Count -eq 0) {
+  throw "No synthesized CloudFormation template was found in: $templateDirectory"
 }
+
+if ($templateCandidates.Count -gt 1) {
+  $template = $templateCandidates |
+    Where-Object { $_.Name -eq 'localstack.template.json' } |
+    Select-Object -First 1
+  if ($null -eq $template) {
+    throw "Multiple synthesized templates were found; unable to choose one: $($templateCandidates.Name -join ', ')"
+  }
+} else {
+  $template = $templateCandidates[0]
+}
+
+$template = $template.FullName
+Write-Host "Using synthesized template: $template"
 
 Invoke-Checked 'lstk' @('aws', 'cloudformation', 'deploy', '--stack-name', 'patient-management',
   '--template-file', $template, '--capabilities', 'CAPABILITY_IAM')

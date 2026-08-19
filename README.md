@@ -4,8 +4,8 @@ A software engineering project that implements a patient-management platform
 using Java, Spring Boot, microservices, synchronous and asynchronous service
 communication, and AWS-style infrastructure running locally with LocalStack.
 
-> **Status:** Initial project setup. Services and infrastructure will be added
-> incrementally and validated at each milestone.
+> **Status:** Application modules reconstructed. Runtime build and LocalStack
+> deployment validation are pending toolchain availability.
 
 ## Planned architecture
 
@@ -20,9 +20,17 @@ communication, and AWS-style infrastructure running locally with LocalStack.
 
 ## Repository layout
 
-The application modules will be created in this repository as the project is
-rebuilt and documented. Project notes, decisions, and verification evidence
-belong in [`docs/`](docs/README.md).
+```text
+patient-service/     Patient REST API, PostgreSQL, gRPC client, Kafka producer
+billing-service/     Billing gRPC endpoint
+analytics-service/   Kafka event consumer
+auth-service/        JWT login and validation
+api-gateway/         Spring Cloud Gateway and JWT filter
+docs/                Architecture notes and verification evidence
+```
+
+Project notes, decisions, and verification evidence belong in
+[`docs/`](docs/README.md).
 
 The upstream tutorial repository is cloned locally into
 `java-spring-microservices/` as a reference implementation. That directory is
@@ -53,9 +61,9 @@ state are ignored by Git.
 
 Work is organized into small, verifiable milestones:
 
-1. Analyze and document the reference architecture.
-2. Reconstruct and validate each Spring Boot service.
-3. Verify REST, gRPC, Kafka, persistence, and JWT flows.
+1. Analyze and document the reference architecture. **Complete.**
+2. Reconstruct the Spring Boot services. **In progress.**
+3. Validate REST, gRPC, Kafka, persistence, and JWT flows.
 4. Containerize the services.
 5. Define and deploy the LocalStack infrastructure.
 6. Add integration tests and deployment evidence.

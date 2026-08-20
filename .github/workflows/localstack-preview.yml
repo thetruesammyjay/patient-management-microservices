@@ -60,7 +60,7 @@ jobs:
       - name: Install AWS LocalStack client
         shell: bash
         run: |
-          python3 -m pip install --user 'awscli-local[ver1]'
+          python3 -m pip install --user localstack 'awscli-local[ver1]'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Create remote LocalStack preview
@@ -76,27 +76,18 @@ jobs:
           fi
 
           preview_name="patient-management-${GITHUB_RUN_ID}"
-          response="$(curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "ls-api-key: ${LOCALSTACK_AUTH_TOKEN}" \
-            --header "authorization: token ${LOCALSTACK_AUTH_TOKEN}" \
-            --header 'content-type: application/json' \
-            --data '{"auto_load_pod":"false"}' \
-            "https://api.localstack.cloud/v1/previews/${preview_name}")"
+          response="$(localstack ephemeral create \
+            --name "$preview_name" \
+            --lifetime 30)"
 
           echo "$response" | jq .
-          endpoint_url="$(jq -r '.endpointUrl // .endpoint_url // empty' <<< "$response")"
-          preview_id="$(jq -r '.id // .previewId // .preview_id // .instanceId // .instance_id // empty' <<< "$response")"
+          endpoint_url="$(jq -r '.endpoint_url // .endpointUrl // empty' <<< "$response")"
 
           if [[ -z "$endpoint_url" ]]; then
-            echo "LocalStack did not return a preview endpoint."
+            echo "LocalStack did not return a preview endpoint. Response: $response"
             exit 1
           fi
 
-          # The API has returned different id field names across preview versions.
-          # Keep the id when present so failed runs can be cleaned up, but do not
-          # make a successful deployment depend on that optional response field.
-          echo "LOCALSTACK_PREVIEW_ID=$preview_id" >> "$GITHUB_ENV"
           echo "LOCALSTACK_PREVIEW_NAME=$preview_name" >> "$GITHUB_ENV"
           echo "AWS_ENDPOINT_URL=$endpoint_url" >> "$GITHUB_ENV"
           echo "LS_PREVIEW_URL=$endpoint_url" >> "$GITHUB_ENV"
@@ -186,12 +177,11 @@ jobs:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -n "${LOCALSTACK_PREVIEW_ID:-}" ]]; then
-            curl --fail-with-body --silent --show-error \
-              --request DELETE \
-              --header "ls-api-key: ${LOCALSTACK_AUTH_TOKEN}" \
-              --header "authorization: token ${LOCALSTACK_AUTH_TOKEN}" \
-              "https://api.localstack.cloud/v1/previews/${LOCALSTACK_PREVIEW_ID}"
+          if [[ -n "${LOCALSTACK_PREVIEW_NAME:-}" ]]; then
+            localstack ephemeral delete \
+              --name "$LOCALSTACK_PREVIEW_NAME" \
+              --wait \
+              --timeout 120
           fi
 
       - name: Upload deployment artifacts
